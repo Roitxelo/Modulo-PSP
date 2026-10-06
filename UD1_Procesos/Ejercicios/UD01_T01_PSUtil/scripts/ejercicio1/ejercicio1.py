@@ -1,55 +1,94 @@
+import psutil
 import json
 from datetime import datetime
 from pathlib import Path
 
-import psutil
-
 
 def obtener_informacion():
-    particiones = []
 
-    for particion in psutil.disk_partitions():
-        try:
-            uso = psutil.disk_usage(particion.mountpoint)
-        except (PermissionError, OSError):
-            continue
+    # PLATAFORMA
+    if psutil.WINDOWS:
+        plataforma = "Windows"
+    elif psutil.LINUX:
+        plataforma = "Linux"
+    else:
+        plataforma = "Otro sistema"
 
-        particiones.append({
-            "unidad": particion.device,
-            "ruta": particion.mountpoint,
-            "sistema_archivos": particion.fstype,
-            "total_bytes": uso.total,
-            "usado_bytes": uso.used,
-            "libre_bytes": uso.free,
-            "porcentaje_usado": uso.percent
-        })
 
-    disco = psutil.disk_io_counters()
-    red = psutil.net_io_counters()
+    # CPU
+    numero_cpus = psutil.cpu_count()
+
+    frecuencias = psutil.cpu_freq(percpu=True)
+
+    lista_frecuencias = []
+
+    if frecuencias is not None:
+        for frecuencia in frecuencias:
+            lista_frecuencias.append(frecuencia.current)
+
+    uso_cpu = psutil.cpu_percent(interval=1, percpu=True)
+
+
+    # MEMORIA
     memoria = psutil.virtual_memory()
 
-    return {
-        "plataforma": "Windows" if psutil.WINDOWS else "Linux",
+
+    # DISCOS
+    lista_particiones = []
+
+    for particion in psutil.disk_partitions():
+
+        try:
+            uso = psutil.disk_usage(particion.mountpoint)
+
+            datos_particion = {
+                "unidad": particion.device,
+                "ruta": particion.mountpoint,
+                "sistema_archivos": particion.fstype,
+                "total_bytes": uso.total,
+                "usado_bytes": uso.used,
+                "libre_bytes": uso.free,
+                "porcentaje_usado": uso.percent
+            }
+
+            lista_particiones.append(datos_particion)
+
+        except (PermissionError, OSError):
+            pass
+
+
+    disco = psutil.disk_io_counters()
+
+
+    # RED
+    red = psutil.net_io_counters()
+
+
+    # DICCIONARIO CON TODA LA INFORMACIÓN
+    informacion = {
+
+        "plataforma": plataforma,
+
         "cpu": {
-            "numero": psutil.cpu_count(),
-            "frecuencia_mhz": [
-                frecuencia.current
-                for frecuencia in psutil.cpu_freq(percpu=True)
-            ],
-            "uso_por_cpu_porcentaje": psutil.cpu_percent(interval=1, percpu=True)
+            "numero_cpus": numero_cpus,
+            "frecuencia_mhz": lista_frecuencias,
+            "uso_por_cpu": uso_cpu
         },
+
         "memoria": {
-            "total_bytes": memoria.total,
-            "disponible_bytes": memoria.available,
+            "memoria_total": memoria.total,
+            "memoria_disponible": memoria.available,
             "porcentaje_usado": memoria.percent
         },
+
         "discos": {
-            "particiones": particiones,
+            "particiones": lista_particiones,
             "operaciones_lectura": disco.read_count,
             "operaciones_escritura": disco.write_count,
             "bytes_leidos": disco.read_bytes,
             "bytes_escritos": disco.write_bytes
         },
+
         "red": {
             "bytes_enviados": red.bytes_sent,
             "bytes_recibidos": red.bytes_recv,
@@ -58,36 +97,72 @@ def obtener_informacion():
         }
     }
 
+    return informacion
 
-while True:
-    print("\n1. Mostrar información del sistema")
+
+def mostrar_informacion():
+
+    informacion = obtener_informacion()
+
+    print("\n-----------------------------")
+    print(" INFORMACIÓN DEL SISTEMA")
+    print("-----------------------------")
+
+    print(json.dumps(informacion, indent=4, ensure_ascii=False))
+
+
+def guardar_informacion():
+
+    ruta = input("Introduce la ruta donde guardar el archivo: ")
+
+    carpeta = Path(ruta)
+
+    if not carpeta.is_dir():
+        print("La ruta introducida no existe.")
+        return
+
+    informacion = obtener_informacion()
+
+    fecha = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    nombre_archivo = fecha + "-system-info.json"
+
+    archivo = carpeta / nombre_archivo
+
+    with open(archivo, "w", encoding="utf-8") as fichero:
+        json.dump(informacion, fichero, indent=4, ensure_ascii=False)
+
+    print("Información guardada correctamente.")
+    print("Archivo:", archivo)
+
+
+# MENÚ PRINCIPAL
+
+opcion = 0
+
+while opcion != 3:
+
+    print("\n-----------------------------")
+    print(" INFORMACIÓN DEL SISTEMA")
+    print("-----------------------------")
+    print("1. Mostrar información del sistema")
     print("2. Guardar información del sistema")
     print("3. Salir")
 
-    opcion = input("Elige una opción: ")
+    try:
+        opcion = int(input("\nSelecciona una opción: "))
 
-    if opcion == "1":
-        informacion = obtener_informacion()
-        print(json.dumps(informacion, indent=2, ensure_ascii=False))
+        if opcion == 1:
+            mostrar_informacion()
 
-    elif opcion == "2":
-        ruta = Path(input("Ruta de la carpeta donde guardar el JSON: ").strip())
+        elif opcion == 2:
+            guardar_informacion()
 
-        if not ruta.is_dir():
-            print("La carpeta indicada no existe.")
-            continue
+        elif opcion == 3:
+            print("Programa finalizado.")
 
-        informacion = obtener_informacion()
-        nombre = datetime.now().strftime("%Y%m%d%H%M%S") + "-system-info.json"
-        archivo = ruta / nombre
+        else:
+            print("Opción incorrecta.")
 
-        with open(archivo, "w", encoding="utf-8") as fichero:
-            json.dump(informacion, fichero, indent=2, ensure_ascii=False)
-
-        print(f"Información guardada en: {archivo}")
-
-    elif opcion == "3":
-        break
-
-    else:
-        print("Opción no válida.")
+    except ValueError:
+        print("Debes introducir un número.")
