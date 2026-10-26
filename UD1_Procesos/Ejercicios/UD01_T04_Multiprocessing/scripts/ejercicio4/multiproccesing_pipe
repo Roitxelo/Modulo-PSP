@@ -1,0 +1,30 @@
+import multiprocessing
+
+def enviarCadena(conn, msg):
+    conn.send(msg)
+    print("Mensaje enviado: {}".format(msg))
+    conn.close()
+
+def convertirMayusculas(conn):
+    msg = conn.recv()
+    print("Mensaje a mayus: {}".format(msg.upper()))
+    
+
+if __name__ == "__main__":  
+
+    msg = input(("Introduce una frase: "))
+    conn1, conn2 = multiprocessing.Pipe()
+
+    # creating processes
+    p1 = multiprocessing.Process(target=enviarCadena, args=(conn1, msg,))
+    p2 = multiprocessing.Process(target=convertirMayusculas, args=(conn2,))
+
+    # starting process 1
+    p1.start()
+    # starting process 2
+    p2.start()
+
+    # wait until process 1 is finished
+    p1.join()
+    # wait until process 2 is finished
+    p2.join()
