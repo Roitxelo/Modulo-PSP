@@ -7,7 +7,7 @@ def enviarCadena(conn, msg):
 
 def convertirMayusculas(conn):
     msg = conn.recv()
-    print("Mensaje a mayus: {}".format(msg.upper()))
+    print("Mensaje a mayúsculas: {}".format(msg.upper()))
     
 
 if __name__ == "__main__":  
